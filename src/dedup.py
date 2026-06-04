@@ -1,34 +1,3 @@
-"""
-dedup.py — Deduplication Module
-=================================
-Multi-pass deduplication of the unified employee dataset, with ghost employee
-detection and fuzzy-match review file generation.
-
-Deduplication strategy:
-    Pass 1 — Exact employee ID match (within namespace)
-              Source priority: HRIS > Payroll > Benefits
-              Merges payroll salary/benefits data onto HRIS records.
-
-    Pass 2 — Email match (cross-company)
-              Flags records sharing an email across GT and AC as probable matches.
-              Does NOT auto-merge — produces a review entry.
-
-    Pass 3 — Fuzzy name + hire date match
-              rapidfuzz similarity ≥ 88% on full name, hire date within 30 days.
-              Flags as probable_match — produces a review file for HR.
-
-Ghost employee detection:
-    Payroll records with no corresponding HRIS record (after all passes)
-    are written to a separate ghost employee output file.
-
-Outputs (returned as dict):
-    golden         — pd.DataFrame  unified, deduped employee records
-    ghosts         — pd.DataFrame  payroll records with no HRIS match
-    probable_matches — pd.DataFrame  fuzzy/email pairs for HR review
-
-Author: GlobalTech Data Engineering
-"""
-
 import logging
 
 import numpy as np
@@ -37,8 +6,7 @@ from rapidfuzz import fuzz
 
 logger = logging.getLogger(__name__)
 
-# ── Source priority for field-level merge ─────────────────────────────────────
-# Lower number = higher trust. Used when merging duplicate records.
+
 SOURCE_PRIORITY: dict[str, int] = {
     "globaltech_hris": 1,
     "acquiredco_hris": 1,
@@ -46,26 +14,15 @@ SOURCE_PRIORITY: dict[str, int] = {
     "benefits":        3,
 }
 
-# ── Fuzzy match threshold ─────────────────────────────────────────────────────
-FUZZY_THRESHOLD = 88        # % similarity on full name (token_sort_ratio)
-HIRE_DATE_WINDOW = 30       # days — block hire dates further apart than this
+FUZZY_THRESHOLD = 88
+HIRE_DATE_WINDOW = 30
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _priority(source: str) -> int:
     return SOURCE_PRIORITY.get(str(source).lower(), 99)
 
 
 def _merge_records(group: pd.DataFrame, key_cols: list[str]) -> pd.Series:
-    """
-    Merge a group of duplicate records into a single best record.
-
-    Strategy:
-    - Sort by source priority (most trusted first).
-    - For each column, take the first non-null value from the sorted group.
-    - Track all contributing sources in 'source_systems'.
-    """
     group = group.copy()
     group["_prio"] = group["source"].apply(_priority)
     group = group.sort_values("_prio")
@@ -92,28 +49,9 @@ def pass1_exact_id(
     payroll_df: pd.DataFrame,
     benefits_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Pass 1: Merge payroll and benefits data onto HRIS records by exact employee_id.
-
-    Logic:
-    - Start with the combined HRIS (GlobalTech + AcquiredCo) as the base.
-    - For each HRIS employee_id, pull the best payroll row (most recent
-      effective_date where duplicates exist).
-    - Attach benefits enrollment as a flag (enrolled = True/False).
-    - HRIS records with no payroll match retain NaN salary fields.
-    - Payroll rows with no HRIS match are collected as ghost candidates.
-
-    Args:
-        hris_df:     Combined cleaned HRIS DataFrame (GT + AC).
-        payroll_df:  Cleaned payroll DataFrame.
-        benefits_df: Cleaned benefits DataFrame.
-
-    Returns:
-        (merged_df, ghost_candidates_df)
-    """
     logger.info("Pass 1: Exact ID deduplication...")
 
-    # ── De-duplicate payroll: keep most recent record per employee_id ──────
+
     payroll_deduped = (
         payroll_df
         .sort_values("effective_date", ascending=False, na_position="last")
@@ -123,7 +61,7 @@ def pass1_exact_id(
     pay_dup_removed = len(payroll_df) - len(payroll_deduped)
     logger.info(f"  Payroll duplicates removed (keep latest): {pay_dup_removed:,}")
 
-    # ── Identify ghost payroll records (no HRIS match) ────────────────────
+
     hris_ids = set(hris_df["employee_id"].dropna())
     pay_ids  = set(payroll_deduped["employee_id"].dropna())
     ghost_ids = pay_ids - hris_ids
@@ -131,7 +69,6 @@ def pass1_exact_id(
     ghost_df["ghost_flag_reason"] = "Payroll record with no matching HRIS employee_id"
     logger.info(f"  Ghost employee candidates identified: {len(ghost_df):,}")
 
-    # ── Merge payroll onto HRIS ────────────────────────────────────────────
     pay_cols = ["employee_id", "base_salary", "base_salary_parsed",
                 "salary_usd_annual", "currency", "pay_frequency",
                 "bonus_target_pct", "effective_date"]
@@ -144,12 +81,9 @@ def pass1_exact_id(
         suffixes=("", "_pay"),
     )
 
-    # ── Attach benefits enrollment flag ───────────────────────────────────
-    # One employee may have multiple plan enrollments — flag as enrolled if any
     enrolled_ids = set(benefits_df["employee_id"].dropna())
     merged["benefits_enrolled"] = merged["employee_id"].isin(enrolled_ids)
 
-    # Count of plans per employee
     plan_counts = (
         benefits_df.groupby("employee_id")["plan_type"]
         .count()
@@ -168,22 +102,7 @@ def pass1_exact_id(
     return merged, ghost_df
 
 
-# ── Pass 2: Email Cross-Company Match ─────────────────────────────────────────
-
 def pass2_email_match(merged_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Pass 2: Detect cross-company duplicates by shared email address.
-
-    Records sharing the same email across GT and AC namespaces are flagged
-    as probable matches. They are NOT auto-merged — HR must confirm.
-
-    Args:
-        merged_df: Output of Pass 1.
-
-    Returns:
-        (merged_df_unchanged, email_matches_df)
-        The main DataFrame is returned unchanged; email matches go to review file.
-    """
     logger.info("Pass 2: Email cross-company match...")
 
     email_groups = (
@@ -219,26 +138,9 @@ def pass2_email_match(merged_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFra
 # ── Pass 3: Fuzzy Name + Hire Date Match ──────────────────────────────────────
 
 def pass3_fuzzy_name(merged_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Pass 3: Detect probable duplicates by fuzzy full-name + hire date proximity.
-
-    Strategy:
-    - Build candidate pairs where hire dates are within HIRE_DATE_WINDOW days
-      (blocking step — avoids O(n²) comparison).
-    - For each candidate pair, compute rapidfuzz token_sort_ratio on full name.
-    - Pairs with similarity ≥ FUZZY_THRESHOLD are flagged as probable_match.
-    - Does NOT auto-merge — produces review entries for HR.
-
-    Args:
-        merged_df: Output of Pass 1 (Pass 2 doesn't modify the main DataFrame).
-
-    Returns:
-        DataFrame of probable match pairs for HR review.
-    """
     logger.info(f"Pass 3: Fuzzy name match (threshold={FUZZY_THRESHOLD}%, "
                 f"hire date window={HIRE_DATE_WINDOW} days)...")
 
-    # Only consider records that have both name and hire_date
     candidates = merged_df[
         merged_df["first_name"].notna() &
         merged_df["last_name"].notna() &
@@ -260,8 +162,7 @@ def pass3_fuzzy_name(merged_df: pd.DataFrame) -> pd.DataFrame:
         logger.info("  No cross-company candidates — skipping fuzzy pass.")
         return pd.DataFrame()
 
-    # ── Vectorized blocking: merge on hire date proximity ─────────────────
-    # Convert hire_date to integer days for fast range join
+
     gt_records = gt_records.sort_values("hire_date").reset_index(drop=True)
     ac_records = ac_records.sort_values("hire_date").reset_index(drop=True)
 
@@ -275,14 +176,11 @@ def pass3_fuzzy_name(merged_df: pd.DataFrame) -> pd.DataFrame:
     gt_records = gt_records.dropna(subset=["hire_day"])
     ac_records = ac_records.dropna(subset=["hire_day"])
 
-    # Use merge_asof (sorted merge with tolerance) to get candidate pairs
-    # This reduces O(n*m) to O(n log m) — critical for 15K x 3K
     gt_sorted = gt_records[["employee_id", "full_name", "hire_day"]].copy()
     ac_sorted = ac_records[["employee_id", "full_name", "hire_day"]].copy()
     gt_sorted["hire_day"] = gt_sorted["hire_day"].astype(int)
     ac_sorted["hire_day"] = ac_sorted["hire_day"].astype(int)
 
-    # Forward merge: for each GT record find AC records within window ahead
     pairs_fwd = pd.merge_asof(
         gt_sorted, ac_sorted,
         on="hire_day",
@@ -309,9 +207,6 @@ def pass3_fuzzy_name(merged_df: pd.DataFrame) -> pd.DataFrame:
                 "recommended_action":  (
                     "MERGE" if score >= 95 else "REVIEW"
                 ),
-            })
-
-    logger.info(f"  Candidate pairs compared: {len(candidate_pairs):,}")
     logger.info(f"  Probable matches found  : {len(probable_matches):,}")
 
     if not probable_matches:
@@ -321,22 +216,7 @@ def pass3_fuzzy_name(merged_df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-# ── Dedup Entry Point ─────────────────────────────────────────────────────────
-
 def deduplicate(cleaned: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    """
-    Run the full deduplication pipeline across all cleaned sources.
-
-    Args:
-        cleaned: Dict from clean.clean_all()
-                 Keys: 'hris', 'acquiredco', 'payroll', 'benefits'
-
-    Returns:
-        Dict with keys:
-            'golden'            — unified, deduped employee records
-            'ghosts'            — payroll records with no HRIS match
-            'probable_matches'  — fuzzy/email pairs for HR review
-    """
     logger.info("=" * 60)
     logger.info("DEDUPLICATION LAYER")
     logger.info("=" * 60)
@@ -346,7 +226,7 @@ def deduplicate(cleaned: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     payroll_df  = cleaned["payroll"]
     benefits_df = cleaned["benefits"]
 
-    # ── Combine HRIS sources into single base ──────────────────────────────
+
     combined_hris = pd.concat(
         [hris_df, acq_df],
         ignore_index=True,
@@ -354,16 +234,13 @@ def deduplicate(cleaned: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     )
     logger.info(f"Combined HRIS (GT + AC): {len(combined_hris):,} records")
 
-    # ── Pass 1: Exact ID merge ─────────────────────────────────────────────
     golden, ghost_df = pass1_exact_id(combined_hris, payroll_df, benefits_df)
 
-    # ── Pass 2: Email cross-company match ─────────────────────────────────
     golden, email_review = pass2_email_match(golden)
 
-    # ── Pass 3: Fuzzy name + hire date ────────────────────────────────────
     fuzzy_review = pass3_fuzzy_name(golden)
 
-    # ── Combine review files ───────────────────────────────────────────────
+
     review_frames = [f for f in [email_review, fuzzy_review] if not f.empty]
     probable_matches = (
         pd.concat(review_frames, ignore_index=True)
@@ -374,7 +251,7 @@ def deduplicate(cleaned: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
         ])
     )
 
-    # ── Final golden record column ordering ───────────────────────────────
+
     priority_cols = [
         "employee_id", "first_name", "last_name", "email",
         "department", "job_title", "hire_date", "country",
@@ -388,7 +265,7 @@ def deduplicate(cleaned: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     extra_cols = [c for c in golden.columns if c not in existing_priority]
     golden = golden[existing_priority + extra_cols]
 
-    # ── Add company_origin for Parquet partitioning ────────────────────────
+
     golden["company_origin"] = np.where(
         golden["employee_id"].str.startswith("GT-"), "GlobalTech", "AcquiredCo"
     )

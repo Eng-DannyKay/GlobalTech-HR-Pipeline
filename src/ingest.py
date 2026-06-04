@@ -1,31 +1,3 @@
-"""
-ingest.py — Multi-Source HR Data Ingestion Module
-===================================================
-Loads all 4 source systems into standardized Pandas DataFrames.
-
-Sources:
-    1. GlobalTech HRIS  — CSV (UTF-8), ~15,000 records
-    2. AcquiredCo HRIS  — JSON (paginated API simulation), ~3,200 records
-    3. Combined Payroll — Excel (.xlsx), ~18,500 records
-    4. Benefits Provider— XML, ~12,000 records
-
-Standard Employee Schema (output of align_schema):
-    employee_id       : str   — Namespaced ID set by clean.py (GT-XXXXXX / AC-XXXXXX)
-    first_name        : str
-    last_name         : str
-    email             : str
-    department        : str   — Raw dept code or name; unified by clean.py
-    job_title         : str
-    hire_date         : str   — Raw string; parsed by clean.py
-    country           : str
-    employment_type   : str   — Raw value; normalized by clean.py
-    manager_id        : str   — Raw manager ID; namespaced by clean.py
-    source            : str   — Source system tag
-
-Author: GlobalTech Data Engineering
-Run via: pipeline.py
-"""
-
 import json
 import logging
 from pathlib import Path
@@ -33,10 +5,8 @@ from pathlib import Path
 import pandas as pd
 from lxml import etree
 
-# ── Logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 
-# ── Standard output schema for all sources ────────────────────────────────────
 STANDARD_SCHEMA = [
     "employee_id",
     "first_name",
@@ -51,44 +21,20 @@ STANDARD_SCHEMA = [
     "source",
 ]
 
-# ── Dead-letter store (malformed records accumulate here during ingestion) ─────
 _dead_letters: list[dict] = []
 
 
 def get_dead_letters() -> pd.DataFrame:
-    """Return all dead-letter records collected during ingestion."""
     return pd.DataFrame(_dead_letters)
 
 
 def _log_dead_letter(source: str, record: dict, reason: str) -> None:
-    """Append a malformed record to the dead-letter store instead of crashing."""
     _dead_letters.append({"source": source, "reason": reason, "record": str(record)})
     logger.warning(f"  [DEAD-LETTER] {source}: {reason}")
 
 
-# ── Source 1: GlobalTech HRIS CSV ─────────────────────────────────────────────
 
 def ingest_globaltech_hris(filepath: Path) -> pd.DataFrame:
-    """
-    Ingest the GlobalTech Workday HRIS CSV export.
-
-    Args:
-        filepath: Path to globaltech_hris.csv (UTF-8 encoded).
-
-    Returns:
-        Raw DataFrame with source tag. Column names match the standard schema
-        directly — no renaming needed.
-
-    Schema (as exported):
-        employee_id, first_name, last_name, email, department, job_title,
-        hire_date, country, employment_type, manager_id
-
-    Notes:
-        - employee_id values are plain integers (e.g. 1042); namespacing to
-          GT-XXXXXX is handled in clean.py.
-        - department uses codes like ENG-01, MKT-03; mapped in clean.py.
-        - hire_date format: YYYY-MM-DD.
-    """
     logger.info(f"Ingesting GlobalTech HRIS CSV: {filepath}")
 
     if not filepath.exists():
@@ -106,7 +52,6 @@ def ingest_globaltech_hris(filepath: Path) -> pd.DataFrame:
         logger.error(f"  Failed to read {filepath}: {exc}")
         return pd.DataFrame(columns=STANDARD_SCHEMA)
 
-    # Standardize column names to snake_case
     df.columns = (
         df.columns
         .str.strip()
@@ -129,28 +74,8 @@ def ingest_globaltech_hris(filepath: Path) -> pd.DataFrame:
     return df
 
 
-# ── Source 2: AcquiredCo HRIS JSON (simulated paginated API) ──────────────────
 
 def _parse_acquiredco_record(raw: dict) -> dict | None:
-    """
-    Flatten one nested AcquiredCo JSON employee record into the standard schema.
-
-    Raw structure:
-        {
-          "employee_identifier": "ACQ_00001",
-          "name": {"first": "...", "last": "...", "full": "..."},
-          "contact": {"email": "..."},
-          "assignment": {
-              "department": "...", "role": "...",
-              "location": "...", "hire_timestamp": "2024-06-27T00:00:00"
-          },
-          "employment": {"type": "PT", "status": "Active"},
-          "manager_employee_id": "ACQ_02436"
-        }
-
-    Returns:
-        Flattened dict aligned to standard schema, or None if critically malformed.
-    """
     try:
         return {
             "employee_id":     raw.get("employee_identifier"),
@@ -171,28 +96,6 @@ def _parse_acquiredco_record(raw: dict) -> dict | None:
 
 
 def ingest_acquiredco_json(filepath: Path, page_size: int = 500) -> pd.DataFrame:
-    """
-    Ingest the AcquiredCo BambooHR JSON export, simulating paginated API access.
-
-    In production this would call:
-        GET /api/v1/employees?page=N&per_page=500
-        Authorization: Bearer <token>
-
-    Here we read from file and iterate in page_size chunks to mirror that pattern.
-
-    Args:
-        filepath:  Path to acquiredco_api.json.
-        page_size: Simulated records-per-page (default 500, matching API spec).
-
-    Returns:
-        Flattened DataFrame with source tag.
-
-    Notes:
-        - employee_id values are prefixed ACQ_XXXXX; renamed to AC-XXXXXX in clean.py.
-        - hire_date is an ISO-8601 timestamp; truncated to date in clean.py.
-        - employment_type abbreviations (PT, FT, CT) expanded in clean.py.
-        - department values are names (Engineering, Marketing); mapped in clean.py.
-    """
     logger.info(f"Ingesting AcquiredCo JSON (paginated simulation): {filepath}")
 
     if not filepath.exists():
@@ -233,30 +136,6 @@ def ingest_acquiredco_json(filepath: Path, page_size: int = 500) -> pd.DataFrame
 # ── Source 3: Combined Payroll Excel ──────────────────────────────────────────
 
 def ingest_payroll_excel(filepath: Path) -> pd.DataFrame:
-    """
-    Ingest the ADP combined payroll Excel export.
-
-    Args:
-        filepath: Path to payroll_data.xlsx.
-
-    Returns:
-        DataFrame with payroll columns and source tag.
-
-    Schema (as exported):
-        employee_id      — plain integer or string ID; source column indicates origin
-        source           — 'globaltech' or 'acquiredco' (tells us which namespace)
-        base_salary      — may be string like "$85,000" or float; cleaned in clean.py
-        currency         — USD, EUR, GBP
-        pay_frequency    — Annual, Monthly, Bi-Weekly
-        bonus_target_pct — float percentage
-        effective_date   — date of payroll record
-
-    Notes:
-        - This file covers both GlobalTech and AcquiredCo employees.
-        - Some records are duplicated; removed in dedup.py.
-        - Currency conversion to USD happens in clean.py.
-        - Payroll-only records (no HRIS match) are ghost employees, flagged in dedup.py.
-    """
     logger.info(f"Ingesting Payroll Excel: {filepath}")
 
     if not filepath.exists():
@@ -273,7 +152,6 @@ def ingest_payroll_excel(filepath: Path) -> pd.DataFrame:
         logger.error(f"  Failed to read {filepath}: {exc}")
         return pd.DataFrame()
 
-    # Standardize column names
     df.columns = (
         df.columns
         .str.strip()
@@ -285,7 +163,6 @@ def ingest_payroll_excel(filepath: Path) -> pd.DataFrame:
 
     df["ingest_source"] = "payroll"
 
-    # Dead-letter: rows with no employee_id
     bad_mask = df["employee_id"].isna()
     if bad_mask.any():
         for _, row in df[bad_mask].iterrows():
@@ -296,36 +173,8 @@ def ingest_payroll_excel(filepath: Path) -> pd.DataFrame:
     return df
 
 
-# ── Source 4: Benefits Provider XML ───────────────────────────────────────────
 
 def ingest_benefits_xml(filepath: Path) -> pd.DataFrame:
-    """
-    Ingest the MedShield benefits enrollment XML export.
-
-    Args:
-        filepath: Path to benefits_enrollment.xml.
-
-    Returns:
-        DataFrame with benefits columns and source tag.
-
-    XML Structure:
-        <benefits_enrollments>
-          <enrollment>
-            <employee_id>...</employee_id>
-            <plan_type>...</plan_type>
-            <coverage_level>...</coverage_level>
-            <enrollment_date>...</enrollment_date>
-            <premium_employee>...</premium_employee>
-            <premium_employer>...</premium_employer>
-          </enrollment>
-          ...
-        </benefits_enrollments>
-
-    Notes:
-        - Covers GlobalTech employees only; not all employees are enrolled.
-        - enrollment_date format: DD-Mon-YYYY (e.g. 15-Jan-2022); parsed in clean.py.
-        - employee_id here matches GlobalTech HRIS IDs (plain integers).
-    """
     logger.info(f"Ingesting Benefits XML: {filepath}")
 
     if not filepath.exists():
@@ -368,40 +217,14 @@ def ingest_benefits_xml(filepath: Path) -> pd.DataFrame:
     return df
 
 
-# ── Schema Alignment ──────────────────────────────────────────────────────────
-
 def align_schema(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Align a source DataFrame to the STANDARD_SCHEMA.
-
-    - Columns in STANDARD_SCHEMA but missing from df → added as NaN.
-    - Columns not in STANDARD_SCHEMA → retained (payroll/benefits have extra cols).
-
-    Args:
-        df: Source DataFrame after ingestion.
-
-    Returns:
-        DataFrame with at minimum all STANDARD_SCHEMA columns present.
-    """
     for col in STANDARD_SCHEMA:
         if col not in df.columns:
             df[col] = None
     return df
 
 
-# ── Combined Ingestion Entry Point ────────────────────────────────────────────
-
 def ingest_all_sources(raw_dir: Path) -> dict[str, pd.DataFrame]:
-    """
-    Ingest all 4 source systems and return a dict of DataFrames.
-
-    Args:
-        raw_dir: Directory containing all 4 raw source files.
-
-    Returns:
-        Dict with keys: 'hris', 'acquiredco', 'payroll', 'benefits'
-        Each value is the ingested (not yet cleaned) DataFrame.
-    """
     logger.info("=" * 60)
     logger.info("INGESTION LAYER — Loading all 4 source systems")
     logger.info("=" * 60)

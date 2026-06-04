@@ -76,7 +76,10 @@ def main():
 
     if not ghosts.empty:
         ghost_path = DATA_OUT / "ghost_employees.csv"
-        ghosts.to_csv(ghost_path, index=False)
+        ghost_out = ghosts.copy()
+        ghost_out.insert(0, "payroll_employee_id", ghost_out.pop("employee_id") if "employee_id" in ghost_out.columns else "")
+        ghost_out["name"] = "N/A - No matching HRIS record"
+        ghost_out.to_csv(ghost_path, index=False)
         logger.info(f"  Ghost CSV       -> {ghost_path}  ({len(ghosts):,} records)")
 
     if not probable.empty:

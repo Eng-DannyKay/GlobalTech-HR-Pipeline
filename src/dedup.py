@@ -207,6 +207,8 @@ def pass3_fuzzy_name(merged_df: pd.DataFrame) -> pd.DataFrame:
                 "recommended_action":  (
                     "MERGE" if score >= 95 else "REVIEW"
                 ),
+            })
+
     logger.info(f"  Probable matches found  : {len(probable_matches):,}")
 
     if not probable_matches:

@@ -15,9 +15,6 @@ venv/
 env/
 ENV/
 
-# Data files (raw source data — do not commit)
-data/raw/
-data/processed/
 
 # Logs
 logs/

@@ -1,0 +1,16 @@
+check_id,check_name,status,failed_rows,total_rows,pass_rate,details
+1,NOT_NULL:employee_id,PASS,0,18000,100.0,0 null values in 'employee_id'
+2,NOT_NULL:first_name,PASS,0,18000,100.0,0 null values in 'first_name'
+3,NOT_NULL:last_name,PASS,0,18000,100.0,0 null values in 'last_name'
+4,NOT_NULL:email,PASS,0,18000,100.0,0 null values in 'email'
+5,NOT_NULL:department,FAIL,64,18000,99.64,64 null values in 'department'
+6,NOT_NULL:country,FAIL,41,18000,99.77,41 null values in 'country'
+7,UNIQUE:employee_id,PASS,0,18000,100.0,0 duplicate values in 'employee_id'
+8,UNIQUE:email,WARN,8861,18000,50.77,8861 duplicate values in 'email'
+9,VALUES_IN_SET:employment_type,PASS,0,18000,100.0,0 invalid values. Examples: []
+10,VALUES_IN_SET:currency,PASS,0,18000,100.0,0 invalid values. Examples: []
+11,REGEX:email_format,PASS,0,18000,100.0,"0 values fail pattern '^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$'. Examples: []"
+12,REGEX:employee_id_format,PASS,0,18000,100.0,0 values fail pattern '^(GT|AC)-\d{6}$'. Examples: []
+13,NUMERIC_RANGE:salary_usd_annual,PASS,0,18000,100.0,"0 salaries outside [15,000, 10,000,000]"
+14,DATE_RANGE:hire_date,PASS,0,18000,100.0,"0 dates outside [1970-01-01, 2026-06-04]; 0 unparseable"
+15,REF_INTEGRITY:manager_id→employee_id,PASS,0,16187,100.0,0 manager_id values not found in employee_id set

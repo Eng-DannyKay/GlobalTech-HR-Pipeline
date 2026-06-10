@@ -1,0 +1,4 @@
+record_1_id,record_2_id,similarity_score,hire_date_diff_days,match_type,recommended_action
+GT-005191,AC-002393,100.0,0,fuzzy_name,MERGE
+GT-014913,AC-000199,100.0,0,fuzzy_name,MERGE
+GT-001274,AC-001262,100.0,0,fuzzy_name,MERGE

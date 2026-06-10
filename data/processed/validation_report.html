@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GlobalTech HR Pipeline — Validation Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; color: #333; }
+    h1   { color: #2c3e50; }
+    .summary { display: flex; gap: 1.5em; margin-bottom: 1.5em; }
+    .badge   { padding: .4em 1em; border-radius: 4px; font-weight: bold; font-size: 1.1em; }
+    .pass  { background: #d4edda; color: #155724; }
+    .warn  { background: #fff3cd; color: #856404; }
+    .fail  { background: #f8d7da; color: #721c24; }
+    table  { border-collapse: collapse; width: 100%; font-size: .9em; }
+    th     { background: #2c3e50; color: white; padding: .5em 1em; text-align: left; }
+    td     { padding: .45em 1em; border-bottom: 1px solid #dee2e6; }
+    .footer { margin-top: 2em; color: #888; font-size: .8em; }
+  </style>
+</head>
+<body>
+  <h1>GlobalTech HR Integration Pipeline — Data Quality Report</h1>
+  <p>Generated: 2026-06-04 12:51:14 | Source: GlobalTech Corp multi-source HR data</p>
+
+  <div class="summary">
+    <span class="badge pass">PASS: 12</span>
+    <span class="badge warn">WARN: 1</span>
+    <span class="badge fail">FAIL: 2</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Check</th><th>Status</th>
+        <th>Failed Rows</th><th>Total Rows</th><th>Pass Rate</th><th>Details</th>
+      </tr>
+    </thead>
+    <tbody>
+<tr style="background:#d4edda"><td>1</td><td>NOT_NULL:employee_id</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 null values in 'employee_id'</td></tr>
+<tr style="background:#d4edda"><td>2</td><td>NOT_NULL:first_name</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 null values in 'first_name'</td></tr>
+<tr style="background:#d4edda"><td>3</td><td>NOT_NULL:last_name</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 null values in 'last_name'</td></tr>
+<tr style="background:#d4edda"><td>4</td><td>NOT_NULL:email</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 null values in 'email'</td></tr>
+<tr style="background:#f8d7da"><td>5</td><td>NOT_NULL:department</td><td><strong>FAIL</strong></td><td style="text-align:right">64</td><td style="text-align:right">18,000</td><td style="text-align:right">99.6%</td><td>64 null values in 'department'</td></tr>
+<tr style="background:#f8d7da"><td>6</td><td>NOT_NULL:country</td><td><strong>FAIL</strong></td><td style="text-align:right">41</td><td style="text-align:right">18,000</td><td style="text-align:right">99.8%</td><td>41 null values in 'country'</td></tr>
+<tr style="background:#d4edda"><td>7</td><td>UNIQUE:employee_id</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 duplicate values in 'employee_id'</td></tr>
+<tr style="background:#fff3cd"><td>8</td><td>UNIQUE:email</td><td><strong>WARN</strong></td><td style="text-align:right">8,861</td><td style="text-align:right">18,000</td><td style="text-align:right">50.8%</td><td>8861 duplicate values in 'email'</td></tr>
+<tr style="background:#d4edda"><td>9</td><td>VALUES_IN_SET:employment_type</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 invalid values. Examples: []</td></tr>
+<tr style="background:#d4edda"><td>10</td><td>VALUES_IN_SET:currency</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 invalid values. Examples: []</td></tr>
+<tr style="background:#d4edda"><td>11</td><td>REGEX:email_format</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 values fail pattern '^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$'. Examples: []</td></tr>
+<tr style="background:#d4edda"><td>12</td><td>REGEX:employee_id_format</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 values fail pattern '^(GT|AC)-\d{6}$'. Examples: []</td></tr>
+<tr style="background:#d4edda"><td>13</td><td>NUMERIC_RANGE:salary_usd_annual</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 salaries outside [15,000, 10,000,000]</td></tr>
+<tr style="background:#d4edda"><td>14</td><td>DATE_RANGE:hire_date</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 dates outside [1970-01-01, 2026-06-04]; 0 unparseable</td></tr>
+<tr style="background:#d4edda"><td>15</td><td>REF_INTEGRITY:manager_id→employee_id</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">16,187</td><td style="text-align:right">100.0%</td><td>0 manager_id values not found in employee_id set</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    GlobalTech Corp · AmaliTech Training Academy Capstone · Pipeline v1.0
+  </div>
+</body>
+</html>

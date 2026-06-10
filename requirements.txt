@@ -1,0 +1,6 @@
+pandas
+numpy
+lxml
+rapidfuzz
+matplotlib
+pyarrow

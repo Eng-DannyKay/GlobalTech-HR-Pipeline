@@ -2,6 +2,11 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from ingest import ingest_all_sources, get_dead_letters
+from clean import clean_all
+from dedup import deduplicate
+from validate import validate
+from visualize import visualize
 
 BASE_DIR    = Path(__file__).parent
 DATA_RAW    = BASE_DIR / "data" / "raw"
@@ -36,7 +41,7 @@ def main():
     logger.info(f"Output      : {DATA_OUT}")
     logger.info("=" * 60)
 
-    from ingest import ingest_all_sources, get_dead_letters
+    
     sources = ingest_all_sources(DATA_RAW)
 
     dead_letters = get_dead_letters()
@@ -45,20 +50,20 @@ def main():
         dead_letters.to_csv(dl_path, index=False)
         logger.warning(f"  Dead-letter records saved: {dl_path}")
 
-    from clean import clean_all
+    
     cleaned = clean_all(sources)
 
-    from dedup import deduplicate
+  
     dedup_result = deduplicate(cleaned)
 
     golden   = dedup_result["golden"]
     ghosts   = dedup_result["ghosts"]
     probable = dedup_result["probable_matches"]
 
-    from validate import validate
+    
     report = validate(golden, output_dir=DATA_OUT)
 
-    from visualize import visualize
+   
     charts = visualize(golden, report, output_dir=CHARTS_DIR)
 
     logger.info("=" * 60)

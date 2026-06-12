@@ -19,7 +19,7 @@
 </head>
 <body>
   <h1>GlobalTech HR Integration Pipeline — Data Quality Report</h1>
-  <p>Generated: 2026-06-04 12:51:14 | Source: GlobalTech Corp multi-source HR data</p>
+  <p>Generated: 2026-06-10 16:53:27 | Source: GlobalTech Corp multi-source HR data</p>
 
   <div class="summary">
     <span class="badge pass">PASS: 12</span>
@@ -48,7 +48,7 @@
 <tr style="background:#d4edda"><td>11</td><td>REGEX:email_format</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 values fail pattern '^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$'. Examples: []</td></tr>
 <tr style="background:#d4edda"><td>12</td><td>REGEX:employee_id_format</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 values fail pattern '^(GT|AC)-\d{6}$'. Examples: []</td></tr>
 <tr style="background:#d4edda"><td>13</td><td>NUMERIC_RANGE:salary_usd_annual</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 salaries outside [15,000, 10,000,000]</td></tr>
-<tr style="background:#d4edda"><td>14</td><td>DATE_RANGE:hire_date</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 dates outside [1970-01-01, 2026-06-04]; 0 unparseable</td></tr>
+<tr style="background:#d4edda"><td>14</td><td>DATE_RANGE:hire_date</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">18,000</td><td style="text-align:right">100.0%</td><td>0 dates outside [1970-01-01, 2026-06-10]; 0 unparseable</td></tr>
 <tr style="background:#d4edda"><td>15</td><td>REF_INTEGRITY:manager_id→employee_id</td><td><strong>PASS</strong></td><td style="text-align:right">0</td><td style="text-align:right">16,187</td><td style="text-align:right">100.0%</td><td>0 manager_id values not found in employee_id set</td></tr>
     </tbody>
   </table>

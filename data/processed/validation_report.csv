@@ -12,5 +12,5 @@ check_id,check_name,status,failed_rows,total_rows,pass_rate,details
 11,REGEX:email_format,PASS,0,18000,100.0,"0 values fail pattern '^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$'. Examples: []"
 12,REGEX:employee_id_format,PASS,0,18000,100.0,0 values fail pattern '^(GT|AC)-\d{6}$'. Examples: []
 13,NUMERIC_RANGE:salary_usd_annual,PASS,0,18000,100.0,"0 salaries outside [15,000, 10,000,000]"
-14,DATE_RANGE:hire_date,PASS,0,18000,100.0,"0 dates outside [1970-01-01, 2026-06-04]; 0 unparseable"
+14,DATE_RANGE:hire_date,PASS,0,18000,100.0,"0 dates outside [1970-01-01, 2026-06-10]; 0 unparseable"
 15,REF_INTEGRITY:manager_id→employee_id,PASS,0,16187,100.0,0 manager_id values not found in employee_id set
